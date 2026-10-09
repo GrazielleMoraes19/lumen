@@ -1,0 +1,13 @@
+<?php
+require_once __DIR__ . '/../includes/helpers.php';
+$token = trim($_GET['token'] ?? $_POST['token'] ?? ''); $message = ''; $error = '';
+try {
+    $pdo = db(); $stmt = $pdo->prepare('SELECT id, name FROM users WHERE reset_token = ? AND reset_expires_at > NOW() AND status = "active"'); $stmt->execute([$token]); $user = $stmt->fetch();
+    if ($_SERVER['REQUEST_METHOD'] === 'POST' && $user) {
+        $password = (string)($_POST['password'] ?? ''); $confirmation = (string)($_POST['password_confirmation'] ?? '');
+        if (strlen($password) < 8 || $password !== $confirmation) throw new RuntimeException('As senhas precisam ter pelo menos 8 caracteres e conferir.');
+        $pdo->prepare('UPDATE users SET password_hash = ?, reset_token = NULL, reset_expires_at = NULL WHERE id = ?')->execute([password_hash($password, PASSWORD_DEFAULT), $user['id']]);
+        $message = 'Senha alterada com sucesso. Agora você já pode entrar no Lumen.'; $user = null;
+    }
+} catch (Throwable $e) { $error = $e->getMessage(); }
+?><!doctype html><html lang="pt-BR"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Nova senha — Lumen</title><link rel="stylesheet" href="assets/styles.css"><link rel="stylesheet" href="assets/app.css"></head><body><main class="login-screen"><div class="login-visual"><a class="landing-brand" href="index.php"><img class="landing-brand-mark" src="assets/logo.png" alt="Logo do Lumen"><span><strong>LUMEN</strong><small>cuidado que ilumina</small></span></a><div class="login-quote"><h1>Seu cuidado,<br><em>mais perto.</em></h1><p>Escolha uma nova senha para continuar protegida.</p></div></div><div class="login-panel"><div class="login-panel-inner"><div class="eyebrow">RECUPERAÇÃO DE ACESSO</div><h1>Nova senha</h1><?php if ($message): ?><div class="flash-message"><?= e($message) ?><br><a href="index.php">Voltar para o login →</a></div><?php elseif ($error): ?><div class="status pink" style="display:block;margin-bottom:16px;line-height:1.5"><?= e($error) ?></div><?php elseif (!$user): ?><div class="panel"><p class="helper-text">Este link é inválido ou expirou. Solicite uma nova recuperação de senha.</p></div><?php else: ?><p class="login-subtitle">Olá, <?= e($user['name']) ?>. Crie sua nova senha.</p><form method="post"><input type="hidden" name="token" value="<?= e($token) ?>"><div class="field"><label>Nova senha</label><input name="password" type="password" minlength="8" required></div><div class="field"><label>Confirme sua senha</label><input name="password_confirmation" type="password" minlength="8" required></div><button class="primary login-button" type="submit">Salvar nova senha <span>→</span></button></form><?php endif; ?></div></div></main></body></html>
